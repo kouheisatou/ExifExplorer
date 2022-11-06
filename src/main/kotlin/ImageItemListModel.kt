@@ -1,21 +1,31 @@
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material.Divider
+import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
 
-private const val AVAILABLE_THREAD = 4
-
 class ImageItemListModel(private val directory: File) {
     val imageList = mutableStateListOf<ImageItem>()
+    var thumbnailGenerateProcess: Job? = null
+    var exifColumns = mutableStateListOf<String>()
+    var exifColumnWidth = mutableStateListOf<Int>()
+    var exifColumnScrollState = mutableStateOf(ScrollState(0))
 
     fun loadFiles(onProgressChanged: (percentage: Float) -> Unit, onLoadFinished: (ImageItemListModel) -> Unit) {
         CoroutineScope(Dispatchers.IO).launch {
@@ -25,9 +35,15 @@ class ImageItemListModel(private val directory: File) {
                 )
             }
             for (file in fileList.withIndex()) {
-                imageList.add(ImageItem(file.value))
+                val imageItem = ImageItem(file.value)
+                imageItem.exifMap.forEach{
+                    if(!exifColumns.contains(it.key)){
+                        exifColumns.add(it.key)
+                        exifColumnWidth.add(100)
+                    }
+                }
+                imageList.add(imageItem)
                 onProgressChanged((file.index + 1).toFloat() / fileList.size)
-                println(file.value.name)
             }
 
             onLoadFinished(this@ImageItemListModel)
@@ -35,8 +51,8 @@ class ImageItemListModel(private val directory: File) {
     }
 
     fun genThumbnails(onProgressChanged: (percentage: Float, processingImage: ImageItem) -> Unit) {
-        var completed = 0
-        CoroutineScope(Dispatchers.IO).launch {
+        var completed = 1
+        thumbnailGenerateProcess = CoroutineScope(Dispatchers.IO).launch {
             for (imageItem in imageList.withIndex()) {
                 imageItem.value.genThumbnail()
                 onProgressChanged(completed / imageList.size.toFloat(), imageItem.value)
@@ -51,9 +67,22 @@ class ImageItemListModel(private val directory: File) {
 
 @Composable
 fun ImageListComponent(imageItemListModel: ImageItemListModel, modifier: Modifier = Modifier) {
+    Row(
+        modifier = Modifier
+            .padding(start = THUMBNAIL_SIZE.dp)
+            .horizontalScroll(imageItemListModel.exifColumnScrollState.value)
+    ){
+        for (i in 0 until imageItemListModel.exifColumns.size) {
+            Box(modifier = Modifier.width(imageItemListModel.exifColumnWidth[i].dp)){
+                Text(imageItemListModel.exifColumns[i])
+            }
+        }
+    }
+
+    Divider(color = Color.Black)
     LazyColumn(modifier = modifier) {
         items(imageItemListModel.imageList.size) {
-            ImageItemComponent(imageItemListModel.imageList[it])
+            ImageItemComponent(imageItemListModel.imageList[it], imageItemListModel.exifColumns, imageItemListModel.exifColumnWidth, imageItemListModel.exifColumnScrollState)
             Divider(
                 modifier = Modifier.background(color = Color.Black)
             )
