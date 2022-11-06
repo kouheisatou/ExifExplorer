@@ -1,18 +1,17 @@
-import com.drew.imaging.ImageMetadataReader
+import org.apache.commons.imaging.ImageReadException
+import org.apache.commons.imaging.Imaging
+import org.apache.commons.imaging.formats.jpeg.JpegImageMetadata
+import org.apache.commons.imaging.formats.tiff.TiffImageMetadata
 import java.io.File
+import java.io.IOException
+
 
 fun main() {
-    try {
-        val sampleFile = File("src/main/resources/sample.JPG")
-        val metadata = ImageMetadataReader.readMetadata(sampleFile)
+    println(readExifMetadata(File("src/main/resources/sample.JPG")))
+}
 
-        for(directory in metadata.directories){
-            println("==============${directory.name}==============")
-            for(tag in directory.tags){
-                println("${tag.tagType}:${tag.tagName}=${tag.description}")
-            }
-        }
-    }catch (e: Exception){
-        e.printStackTrace()
-    }
+    private fun readExifMetadata(imageFile: File): TiffImageMetadata? {
+        val imageMetadata = Imaging.getMetadata(imageFile.readBytes()) ?: return null
+        val jpegMetadata = imageMetadata as JpegImageMetadata
+        return jpegMetadata.exif ?: return null
 }
